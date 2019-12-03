@@ -34,7 +34,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // @@
                             Ok(())
                         } else {
-                            tracing::debug!("Pool {}.{} creating (fsid: {})", pool.filesystem, pool.name, fsid);
+                            tracing::debug!(
+                                "Pool {}.{} creating (fsid: {})",
+                                pool.filesystem,
+                                pool.name,
+                                fsid
+                            );
                             client.create(fsid, &pool.name).await?;
                             client.grow(fsid, &pool.name, &pool.osts).await
                         }
@@ -53,14 +58,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             client.shrink(fsid, &pool.name, &pool.osts).await?;
                             client.delete(fsid, &pool.name).await
                         } else {
-                            tracing::debug!("Pool {}.{} already removed", pool.filesystem, pool.name);
+                            tracing::debug!(
+                                "Pool {}.{} already removed",
+                                pool.filesystem,
+                                pool.name
+                            );
                             Ok(())
                         }
                     }
                     OstPoolAction::Grow => {
                         if client.exists(fsid, &pool.name).await? {
-                            tracing::debug!("Pool {}.{} growing {} osts",
-                                            pool.filesystem, pool.name, pool.osts.len());
+                            tracing::debug!(
+                                "Pool {}.{} growing {} osts",
+                                pool.filesystem,
+                                pool.name,
+                                pool.osts.len()
+                            );
                             client.grow(fsid, &pool.name, &pool.osts).await
                         } else {
                             tracing::warn!(
@@ -73,8 +86,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     OstPoolAction::Shrink => {
                         if client.exists(fsid, &pool.name).await? {
-                            tracing::debug!("Pool {}.{} shrinking {} osts",
-                                            pool.filesystem, pool.name, pool.osts.len());
+                            tracing::debug!(
+                                "Pool {}.{} shrinking {} osts",
+                                pool.filesystem,
+                                pool.name,
+                                pool.osts.len()
+                            );
                             client.shrink(fsid, &pool.name, &pool.osts).await
                         } else {
                             tracing::warn!(

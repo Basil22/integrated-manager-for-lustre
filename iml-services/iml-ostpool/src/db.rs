@@ -53,8 +53,10 @@ impl PoolClient {
     /// Assume that if there is a single filesystem with a given name,
     /// that it's the correct one
     pub async fn fs2id(&self, fsname: &str) -> Result<i32, Error> {
-        let query = format!("SELECT id FROM {} WHERE name=$1 AND not_deleted=True",
-                            FsRecord::table_name());
+        let query = format!(
+            "SELECT id FROM {} WHERE name=$1 AND not_deleted=True",
+            FsRecord::table_name()
+        );
         let s = self.client.prepare(&query).await?;
         let vr = self.client.query(&s, &[&fsname]).await?;
 
