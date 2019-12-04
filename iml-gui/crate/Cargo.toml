@@ -17,21 +17,28 @@ wasm-bindgen-test = "0.2" # sync with `wasm-bindgen`
 
 [dependencies]
 chrono = { version = "0.4", features = ["wasmbind"] }
-js-sys = "0.3"
-seed = "0.5.0"
-wasm-bindgen = "0.2" # sync with `wasm-bindgen-test`
 iml-wire-types = { path = "../../iml-wire-types", version = "0.2" }
+js-sys = "0.3"
+seed = {git="https://github.com/zimond/seed", rev="5426af8c21e900736c4a0a44a23a9ee73a799841", version = "0.5.0"}
 serde = { version = "1", features = ['derive'] }
 serde_json = "1.0"
+wasm-bindgen = "0.2" # sync with `wasm-bindgen-test`
+wasm-bindgen-futures = "0.4.5"
 
 [dependencies.web-sys]
 version = "^0.3"
 features = [
-  "Navigator",
-  "EventSource",
   "DomRect",
   "Element",
-  "MessageEvent"
+  "EventSource",
+  "MessageEvent",
+  "Navigator",
+  "Notification",
+  "NotificationOptions",
+  "NotificationPermission",
+  "ServiceWorkerContainer",
+  "ServiceWorkerRegistration",
+  "Window",
 ]
 
 [profile.release]
