@@ -116,7 +116,7 @@ mod tests {
     fn test_version_display() {
         let version = "1.3-5.0".to_string();
         let ver = Version::from(ver);
-        
+
         assert_eq!(version, format!("{}", ver));
     }
 }

@@ -1085,6 +1085,7 @@ dependencies = [
  "url 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "v_hist 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "version-utils 0.1.0",
 ]
 
 [[package]]
@@ -3248,6 +3249,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "vec_map"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "version-utils"
+version = "0.1.0"
 
 [[package]]
 name = "version_check"
