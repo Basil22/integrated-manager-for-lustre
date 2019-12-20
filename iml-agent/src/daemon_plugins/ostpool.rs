@@ -8,7 +8,7 @@ use crate::{
     cmd::lctl,
     daemon_plugins::{DaemonPlugin, Output},
 };
-use futures::{future::try_join_all, lock::Mutex, Future, FutureExt};
+use futures::{future::{join_all, try_join_all}, lock::Mutex, Future, FutureExt};
 use iml_wire_types::{OstPool, OstPoolAction};
 use std::{
     collections::{HashMap, HashSet},
@@ -107,32 +107,47 @@ fn diff_state(
     Ok(changes)
 }
 
-async fn init_fsmap(
-    state: Arc<Mutex<HashMap<String, HashMap<String, HashSet<String>>>>>,
+async fn get_fsmap(
     fsname: String,
-) -> Result<(), ImlAgentError> {
-    let fsmap: HashMap<String, HashSet<String>> = HashMap::new();
-    state.lock().await.insert(fsname.clone(), fsmap);
-
+) -> Vec<(String, String, HashSet<String>)> {
     let xs = pool_list(&fsname)
         .await
         .unwrap_or(vec![])
         .into_iter()
         .map(|pool| {
-            let fsname = &fsname;
-            let state = Arc::clone(&state);
+            let fsname = fsname.clone();
             async move {
                 let osts = ost_list(&fsname, &pool).await.unwrap_or(HashSet::new());
-                state
-                    .lock()
-                    .await
-                    .get_mut(fsname)
-                    .and_then(|hm| hm.insert(pool, osts));
-                Ok::<(), ImlAgentError>(())
+                (fsname, pool, osts)
             }
         });
-    try_join_all(xs).await?;
-    Ok(())
+    join_all(xs).await
+}
+
+fn init_pools(
+    state: &mut HashMap<String, HashMap<String, HashSet<String>>>,
+    xs: Vec<(String, String, HashSet<String>)>,
+) -> Vec<(OstPoolAction, OstPool)> {
+    xs.into_iter()
+        .inspect(|(fsname, pool, osts)| {
+            state
+                .entry(fsname.clone())
+                .and_modify(|hm| {
+                    hm.insert(pool.clone(), osts.clone());
+                })
+                .or_insert_with(|| HashMap::from_iter(vec![(pool.clone(), osts.clone())]));
+        })
+        .map(|(filesystem, name, osts)| {
+            (
+                OstPoolAction::Initial,
+                OstPool {
+                    name,
+                    filesystem,
+                    osts: osts.into_iter().collect(),
+                },
+            )
+        })
+        .collect()
 }
 
 impl DaemonPlugin for PoolState {
@@ -144,31 +159,18 @@ impl DaemonPlugin for PoolState {
         async move {
             let fslist = list_fs().await.unwrap_or(vec![]);
 
-            let xs = fslist.into_iter().map(|fsname| {
-                let state = Arc::clone(&state);
-                async move { init_fsmap(state, fsname).await }
-            });
-            try_join_all(xs).await?;
-            let pools: Vec<(OstPoolAction, OstPool)> = state
-                .lock()
+            let xs = join_all(fslist.into_iter().map(get_fsmap))
                 .await
-                .iter()
-                .map(|(fs, phm)| {
-                    let fs = fs.clone();
-                    phm.iter().map(move |(pool, osts)| {
-                        (
-                            OstPoolAction::Initial,
-                            OstPool {
-                                name: pool.clone(),
-                                filesystem: fs.clone(),
-                                osts: osts.iter().cloned().collect(),
-                            },
-                        )
-                    })
-                })
+                .into_iter()
                 .flatten()
                 .collect();
+
+            let mut state = state.lock().await;
+            
+            let pools: Vec<(OstPoolAction, OstPool)> = init_pools(&mut state, xs);
+
             let x = serde_json::to_value(pools).map(Some)?;
+
             Ok(x)
         }
         .boxed()
@@ -191,23 +193,13 @@ impl DaemonPlugin for PoolState {
 
                         diff_state(fs, hm, &pools)
                     } else {
-                        init_fsmap(Arc::clone(&state), fs.clone()).await?;
+                        let xs = get_fsmap(fs).await;
+                        
+                        let mut state = state.lock().await;
 
-                        let l = state.lock().await.get(&fs).map_or(vec![], |phm| {
-                            phm.iter()
-                                .map(move |(pool, osts)| {
-                                    (
-                                        OstPoolAction::Initial,
-                                        OstPool {
-                                            name: pool.clone(),
-                                            filesystem: fs.clone(),
-                                            osts: osts.iter().cloned().collect(),
-                                        },
-                                    )
-                                })
-                                .collect()
-                        });
-                        Ok::<Vec<(OstPoolAction, OstPool)>, ImlAgentError>(l)
+                        let pools: Vec<(OstPoolAction, OstPool)> = init_pools(&mut state, xs);
+
+                        Ok::<Vec<(OstPoolAction, OstPool)>, ImlAgentError>(pools)
                     }
                 }
             });
