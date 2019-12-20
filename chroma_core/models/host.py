@@ -1596,6 +1596,14 @@ class WriteConfStep(Step):
         self.invoke_agent(args["host"], "writeconf_target", agent_args)
 
 
+class ReplaceNidsStep(Step):
+    def run(self, args):
+        device = args["path"]
+        mgsnode = args["mgsnode"]
+
+        return self.invoke_rust_agent_expect_result(args["fqdn"], "lctl", ["replace_nids", device, mgsnode])
+
+
 class ResetConfParamsStep(Step):
     database = True
 
@@ -1685,15 +1693,10 @@ class UpdateNidsJob(HostListMixin):
             steps.append((MountOrImportStep, MountOrImportStep.create_parameters(target, primary_tm.host, False)))
             steps.append(
                 (
-                    WriteConfStep,
+                    ReplaceNidsStep,
                     {
-                        "target": target,
                         "path": primary_tm.volume_node.path,
-                        "mgsnode": target.filesystem.mgs.nids()
-                        if issubclass(target.downcast_class, FilesystemMember)
-                        else None,
-                        "host": primary_tm.host,
-                        "fail_nids": target.get_failover_nids(),
+                        "mgsnode": target.filesystem.mgs.nids(),
                     },
                 )
             )
