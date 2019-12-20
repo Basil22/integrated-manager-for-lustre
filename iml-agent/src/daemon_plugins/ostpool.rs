@@ -19,7 +19,7 @@ use std::{
 
 #[derive(Debug)]
 pub struct PoolState {
-    state: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
+    state: Arc<Mutex<HashMap<String, HashMap<String, HashSet<String>>>>>,
 }
 
 pub fn create() -> impl DaemonPlugin {
@@ -50,7 +50,7 @@ async fn list_fs() -> Result<Vec<String>, ImlAgentError> {
 /// from current filesystem
 fn diff_state(
     fs: String,
-    state: &mut HashMap<String, Vec<String>>,
+    state: &mut HashMap<String, HashSet<String>>,
     pools: &Vec<OstPool>,
 ) -> Result<Vec<(OstPoolAction, OstPool)>, ImlAgentError> {
     let mut rmlist = state.clone();
@@ -58,9 +58,8 @@ fn diff_state(
     for pool in pools {
         tracing::debug!("Updating {}.{}", fs, pool.name);
 
-        if let Some(oldosts) = rmlist.remove(&pool.name) {
+        if let Some(old) = rmlist.remove(&pool.name) {
             let new = HashSet::from_iter(pool.osts.clone());
-            let old = HashSet::from_iter(oldosts);
 
             let addlist: HashSet<_> = new.difference(&old).cloned().collect();
             if !addlist.is_empty() {
@@ -86,22 +85,22 @@ fn diff_state(
                     },
                 ));
             }
-            state.insert(pool.name.clone(), pool.osts.clone());
+            state.insert(pool.name.clone(), pool.osts.iter().cloned().collect());
         } else {
-            state.insert(pool.name.clone(), pool.osts.clone());
+            state.insert(pool.name.clone(), pool.osts.iter().cloned().collect());
             changes.push((OstPoolAction::Add, pool.clone()));
         }
     }
 
     // Removed pools
     for name in rmlist.keys() {
-        let osts = state.remove(name.as_str()).unwrap_or(vec![]);
+        let osts = state.remove(name.as_str()).unwrap_or(HashSet::new());
         changes.push((
             OstPoolAction::Remove,
             OstPool {
                 name: name.clone(),
                 filesystem: fs.clone(),
-                osts,
+                osts: osts.into_iter().collect(),
             },
         ));
     }
@@ -109,10 +108,10 @@ fn diff_state(
 }
 
 async fn init_fsmap(
-    state: Arc<Mutex<HashMap<String, HashMap<String, Vec<String>>>>>,
+    state: Arc<Mutex<HashMap<String, HashMap<String, HashSet<String>>>>>,
     fsname: String,
 ) -> Result<(), ImlAgentError> {
-    let fsmap: HashMap<String, Vec<String>> = HashMap::new();
+    let fsmap: HashMap<String, HashSet<String>> = HashMap::new();
     state.lock().await.insert(fsname.clone(), fsmap);
 
     let xs = pool_list(&fsname)
@@ -123,7 +122,7 @@ async fn init_fsmap(
             let fsname = &fsname;
             let state = Arc::clone(&state);
             async move {
-                let osts = ost_list(&fsname, &pool).await.unwrap_or(vec![]);
+                let osts = ost_list(&fsname, &pool).await.unwrap_or(HashSet::new());
                 state
                     .lock()
                     .await
@@ -162,7 +161,7 @@ impl DaemonPlugin for PoolState {
                             OstPool {
                                 name: pool.clone(),
                                 filesystem: fs.clone(),
-                                osts: osts.clone(),
+                                osts: osts.iter().cloned().collect(),
                             },
                         )
                     })
@@ -202,7 +201,7 @@ impl DaemonPlugin for PoolState {
                                         OstPool {
                                             name: pool.clone(),
                                             filesystem: fs.clone(),
-                                            osts: osts.clone(),
+                                            osts: osts.iter().cloned().collect(),
                                         },
                                     )
                                 })
