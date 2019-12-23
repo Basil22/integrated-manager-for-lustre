@@ -5,6 +5,7 @@ pub(crate) mod font_awesome;
 pub(crate) mod paging;
 pub(crate) mod popover;
 pub(crate) mod tooltip;
+pub(crate) mod tree;
 
 pub(crate) use activity_indicator::{
     activity_indicator, update_activity_health, ActivityHealth,

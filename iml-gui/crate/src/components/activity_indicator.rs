@@ -1,10 +1,7 @@
 use crate::{components::font_awesome, generated::css_classes::C};
 use iml_wire_types::{Alert, AlertSeverity};
 use seed::{prelude::*, *};
-use std::{
-    cmp::max,
-    collections::{HashMap, HashSet},
-};
+use std::{cmp::max, collections::HashMap};
 
 pub fn update_activity_health(
     active_alert: &HashMap<u32, Alert>,

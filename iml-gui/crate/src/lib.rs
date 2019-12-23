@@ -12,7 +12,7 @@ mod page;
 mod route;
 
 use components::{
-    breadcrumbs::BreadCrumbs, update_activity_health, ActivityHealth,
+    breadcrumbs::BreadCrumbs, tree, update_activity_health, ActivityHealth,
 };
 use generated::css_classes::C;
 use iml_wire_types::warp_drive;
@@ -116,6 +116,7 @@ pub struct Model {
     pub locks: warp_drive::Locks,
     pub activity_health: ActivityHealth,
     pub breadcrumbs: BreadCrumbs<Route<'static>>,
+    pub tree: tree::Model,
 }
 
 pub fn register_eventsource_handle<T, F>(
@@ -186,6 +187,7 @@ fn after_mount(url: Url, orders: &mut impl Orders<Msg>) -> AfterMount<Model> {
         locks: HashMap::new(),
         activity_health: ActivityHealth::new(),
         breadcrumbs: BreadCrumbs::default(),
+        tree: tree::Model::new(),
     })
 }
 
@@ -229,6 +231,7 @@ pub enum Msg {
     RecordChange(warp_drive::RecordChange),
     Locks(warp_drive::Locks),
     WindowClick,
+    Tree(tree::Msg),
 }
 
 pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
@@ -273,6 +276,8 @@ pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
             model.activity_health =
                 update_activity_health(&model.records.active_alert);
+
+            orders.send_msg(Msg::Tree(tree::Msg::Reset));
         }
         Msg::RecordChange(record_change) => match record_change {
             warp_drive::RecordChange::Update(record) => match record {
@@ -319,6 +324,10 @@ pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                 }
                 warp_drive::RecordId::Filesystem(x) => {
                     model.records.filesystem.remove(&x);
+
+                    orders.send_msg(Msg::Tree(tree::Msg::Remove(
+                        warp_drive::RecordId::Filesystem(x),
+                    )));
                 }
                 warp_drive::RecordId::Host(x) => {
                     model.records.host.remove(&x);
@@ -384,6 +393,14 @@ pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             if model.manage_menu_state.should_update() {
                 model.manage_menu_state.update();
             }
+        }
+        Msg::Tree(msg) => {
+            tree::update(
+                &model.records,
+                msg,
+                &mut model.tree,
+                &mut orders.proxy(Msg::Tree),
+            );
         }
     }
 }
@@ -458,6 +475,7 @@ pub fn view(model: &Model) -> impl View<Msg> {
                     C.lg__h_main_content,
                 ],
                 style! { St::FlexBasis => percent(model.side_width_percentage) },
+                tree::view(&model.records, &model.tree).map_message(Msg::Tree)
             ],
             // slider panel
             div![
@@ -513,8 +531,8 @@ pub fn view(model: &Model) -> impl View<Msg> {
                         Route::Dashboard => page::dashboard::view(&model).els(),
                         Route::Filesystem =>
                             page::filesystem::view(&model).els(),
-                        Route::FilesystemDetail =>
-                            page::filesystem_detail::view(&model).els(),
+                        Route::FilesystemDetail(id) =>
+                            page::filesystem_detail::view(&model, &id).els(),
                         Route::Home => page::home::view(&model).els(),
                         Route::Jobstats => page::jobstats::view(&model).els(),
                         Route::Login => page::login::view(&model).els(),
